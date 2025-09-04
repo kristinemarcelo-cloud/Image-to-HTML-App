@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Drop image → HTML converter</title>
+  <style>
+    :root{--bg:#0b1020;--panel:#121a36;--muted:#8ea1c9;--text:#e7eefc;--accent:#5aa9ff;--good:#29c58a;--warn:#ffb020}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:radial-gradient(1200px 800px at 20% -10%,#1a2350 0%,#0b1020 45%),
+                 radial-gradient(900px 700px at 120% 120%,#16324b 0%,#0b1020 60%),var(--bg);
+         color:var(--text);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial}
+    .wrap{max-width:1100px;margin:24px auto;padding:24px}
+    h1{font-weight:700;font-size:28px;margin:0 0 8px}
+    p.subtitle{margin:0 0 20px;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));border:1px solid rgba(255,255,255,.08);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:18px}
+
+    .dropzone{border:2px dashed rgba(255,255,255,.25);border-radius:14px;padding:28px;display:grid;place-items:center;text-align:center;transition:all .2s}
+    .dropzone.drag{border-color:var(--accent);background:rgba(90,169,255,.08)}
+    .dropzone input{display:none}
+    .actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+    button,.btn{background:var(--accent);color:#081023;border:none;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+    button.secondary,.btn.secondary{background:#233462;color:var(--text)}
+    button.ghost{background:transparent;border:1px solid rgba(255,255,255,.2);color:var(--text)}
+    .hint{color:var(--muted);font-size:14px;margin-top:6px}
+
+    .preview{display:grid;grid-template-columns:140px 1fr;gap:14px;align-items:start}
+    .preview img{width:100%;height:auto;border-radius:10px;background:#0b0f20;border:1px solid rgba(255,255,255,.08)}
+    .kv{display:grid;grid-template-columns:120px 1fr;gap:6px;font-size:14px;color:var(--muted)}
+    .kv div{padding:2px 0}
+
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+    @media (max-width:640px){.controls{grid-template-columns:1fr}}
+    label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+    input[type="text"],input[type="number"],input[type="range"]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:#0f1733;color:var(--text)}
+    .range-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+
+    .output{display:grid;gap:12px}
+    textarea{width:100%;min-height:160px;border-radius:12px;border:1px solid rgba(255,255,255,.15);background:#0f1733;color:var(--text);padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+    .small{font-size:12px;color:var(--muted)}
+    .bad{color:#ff7070}
+    .good{color:var(--good)}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Drop image to generate HTML</h1>
+    <p class="subtitle">Drag an image into the box or pick a file. The app will embed it as a base64 data URL inside a standalone HTML file that opens in any browser.</p>
+
+    <div class="grid">
+      <section class="card">
+        <div id="drop" class="dropzone">
+          <div>
+            <h3>Drop your image here</h3>
+            <p class="hint">PNG, JPG, JPEG, WEBP, GIF</p>
+            <div class="actions">
+              <label class="btn secondary" for="file">Choose file</label>
+              <input id="file" type="file" accept="image/*" />
+              <button class="ghost" id="sampleBtn" type="button">Use sample</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="meta" class="preview" style="display:none;margin-top:14px">
+          <img id="thumb" alt="preview" />
+          <div>
+            <div class="kv">
+              <div>File name</div><div id="kv-name">—</div>
+              <div>Type</div><div id="kv-type">—</div>
+              <div>Size</div><div id="kv-size">—</div>
+              <div>Original dims</div><div id="kv-dims">—</div>
+              <div>Output dims</div><div id="kv-outdims">—</div>
+            </div>
+
+            <div class="controls">
+              <div>
+                <label for="alt">Alt text</label>
+                <input id="alt" type="text" placeholder="Describe the image for accessibility" />
+              </div>
+              <div>
+                <label for="maxw">Resize width in px (optional)</label>
+                <input id="maxw" type="number" min="1" step="1" placeholder="Leave blank to keep original" />
+              </div>
+              <div class="range-row">
+                <div>
+                  <label for="quality">JPEG/WEBP quality</label>
+                  <input id="quality" type="range" min="40" max="100" value="92" />
+                </div>
+                <div class="small" id="qval">92</div>
+              </div>
+            </div>
+
+            <div class="actions" style="margin-top:14px">
+              <button id="genBtn" type="button">Generate HTML</button>
+              <button id="openBtn" class="secondary" type="button" disabled>Open in new tab</button>
+              <button id="saveBtn" class="secondary" type="button" disabled>Download .html</button>
+            </div>
+            <div class="hint" id="status"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h3 style="margin:0 0 8px">Output</h3>
+        <div class="output">
+          <label for="snippet">Snippet only</label>
+          <textarea id="snippet" readonly placeholder="<img src=\"data:image/...\" alt=\"...\">"></textarea>
+          <div class="row">
+            <button id="copySnippet" type="button">Copy snippet</button>
+          </div>
+
+          <label for="fullhtml" style="margin-top:6px">Full HTML file</label>
+          <textarea id="fullhtml" readonly placeholder="<!doctype html>..."></textarea>
+          <div class="row">
+            <button id="copyFull" type="button">Copy full HTML</button>
+          </div>
+          <p class="small">Tip: commit the generated HTML to a GitHub repo and enable GitHub Pages to publish it.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const drop = document.getElementById('drop');
+    const fileInput = document.getElementById('file');
+    const sampleBtn = document.getElementById('sampleBtn');
+    const thumb = document.getElementById('thumb');
+    const meta = document.getElementById('meta');
+    const kv = {
+      name: document.getElementById('kv-name'),
+      type: document.getElementById('kv-type'),
+      size: document.getElementById('kv-size'),
+      dims: document.getElementById('kv-dims'),
+      outdims: document.getElementById('kv-outdims')
+    };
+    const altInput = document.getElementById('alt');
+    const maxwInput = document.getElementById('maxw');
+    const qRange = document.getElementById('quality');
+    const qVal = document.getElementById('qval');
+    const genBtn = document.getElementById('genBtn');
+    const openBtn = document.getElementById('openBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const status = document.getElementById('status');
+    const snippet = document.getElementById('snippet');
+    const fullhtml = document.getElementById('fullhtml');
+    const copySnippet = document.getElementById('copySnippet');
+    const copyFull = document.getElementById('copyFull');
+
+    let currentFile = null;
+    let originalImage = null;
+    let outputDataURL = '';
+    let outputWidth = 0, outputHeight = 0;
+
+    qRange.addEventListener('input', ()=> qVal.textContent = qRange.value);
+
+    ;['dragenter','dragover'].forEach(evt=>drop.addEventListener(evt, e=>{
+      e.preventDefault(); e.stopPropagation(); drop.classList.add('drag');
+    }));
+    ;['dragleave','drop'].forEach(evt=>drop.addEventListener(evt, e=>{
+      e.preventDefault(); e.stopPropagation(); drop.classList.remove('drag');
+    }));
+    drop.addEventListener('drop', e=>{
+      const f = e.dataTransfer.files[0];
+      if (f) handleFile(f);
+    });
+    fileInput.addEventListener('change', e=>{
+      const f = e.target.files[0];
+      if (f) handleFile(f);
+    });
+
+    sampleBtn.addEventListener('click', async ()=>{
+      // Small embedded sample so users see how it works without picking a file
+      const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='512' height='320'>\n`+
+                  `<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>`+
+                  `<stop offset='0' stop-color='#5aa9ff'/><stop offset='1' stop-color='#29c58a'/></linearGradient></defs>`+
+                  `<rect width='100%' height='100%' fill='url(#g)'/>`+
+                  `<g fill='white' font-family='system-ui,Segoe UI,Roboto' text-anchor='middle'>`+
+                  `<text x='256' y='170' font-size='56' font-weight='700'>Drop to HTML</text>`+
+                  `<text x='256' y='210' font-size='18' opacity='.9'>sample image</text></g></svg>`;
+      const blob = new Blob([svg], {type:'image/svg+xml'});
+      const f = new File([blob], 'sample.svg', {type:'image/svg+xml'});
+      handleFile(f);
+    });
+
+    async function handleFile(file){
+      if(!file.type.startsWith('image/')){
+        flash('File is not an image', true); return;
+      }
+      currentFile = file;
+      resetOutput();
+      const bytes = await file.arrayBuffer();
+      const blob = new Blob([bytes], {type:file.type});
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = ()=>{
+        originalImage = img;
+        kv.name.textContent = file.name;
+        kv.type.textContent = file.type || 'unknown';
+        kv.size.textContent = humanBytes(file.size);
+        kv.dims.textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
+        thumb.src = url; thumb.alt = file.name;
+        meta.style.display = '';
+        flash('Image loaded. Set options then Generate HTML.', false);
+      };
+      img.onerror = ()=>{ flash('Could not read image', true); };
+      img.src = url;
+    }
+
+    function resetOutput(){
+      snippet.value = '';
+      fullhtml.value = '';
+      openBtn.disabled = true;
+      saveBtn.disabled = true;
+      outputDataURL = '';
+      outputWidth = 0; outputHeight = 0;
+    }
+
+    genBtn.addEventListener('click', async ()=>{
+      if(!currentFile || !originalImage){ flash('Load an image first', true); return; }
+      try{
+        const maxw = parseInt(maxwInput.value.trim(),10);
+        const wantResize = Number.isFinite(maxw) && maxw > 0 && maxw < originalImage.naturalWidth;
+
+        const mime = pickMime(currentFile.type);
+        const quality = clamp(parseInt(qRange.value,10)/100, 0.4, 1);
+
+        if(wantResize || mime !== currentFile.type || currentFile.type === 'image/svg+xml'){
+          // Draw to canvas to resize or to normalize format
+          const scale = wantResize ? maxw / originalImage.naturalWidth : 1;
+          const w = Math.round(originalImage.naturalWidth * scale);
+          const h = Math.round(originalImage.naturalHeight * scale);
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          // Draw SVG by creating an image source URL that canvas can render
+          await drawImageAsync(ctx, originalImage, 0, 0, w, h);
+          // For PNG keep alpha, for JPEG no alpha. For SVG we default to PNG to preserve sharpness
+          outputDataURL = canvas.toDataURL(mime, mime.includes('jpeg')||mime.includes('webp')?quality:1.0);
+          outputWidth = w; outputHeight = h;
+        } else {
+          // Use original bytes
+          const buf = await currentFile.arrayBuffer();
+          const b64 = arrayBufferToBase64(buf);
+          outputDataURL = `data:${currentFile.type};base64,${b64}`;
+          outputWidth = originalImage.naturalWidth; outputHeight = originalImage.naturalHeight;
+        }
+
+        kv.outdims.textContent = `${outputWidth} × ${outputHeight}`;
+
+        const alt = (altInput.value || currentFile.name.replace(/\.[^.]+$/, '').replace(/[\-_]+/g,' ')).trim();
+        const snip = `<img src="${outputDataURL}" alt="${escapeHtml(alt)}" width="${outputWidth}" height="${outputHeight}">`;
+        const html = `<!doctype html>\n`+
+`<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1">\n<title>${escapeHtml(currentFile.name)}</title>\n<style>html,body{height:100%}body{margin:0;display:grid;place-items:center;background:#0b1020}img{max-width:95vw;max-height:90vh;height:auto;width:auto;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,.45)}</style>\n</head>\n<body>\n${snip}\n</body>\n</html>`;
+
+        snippet.value = snip;
+        fullhtml.value = html;
+        openBtn.disabled = false;
+        saveBtn.disabled = false;
+        flash('HTML generated', false, true);
+      }catch(err){
+        console.error(err);
+        flash('Something went wrong while generating HTML', true);
+      }
+    });
+
+    copySnippet.addEventListener('click', ()=>copyToClipboard(snippet.value));
+    copyFull.addEventListener('click', ()=>copyToClipboard(fullhtml.value));
+
+    openBtn.addEventListener('click', ()=>{
+      const url = URL.createObjectURL(new Blob([fullhtml.value], {type:'text/html'}));
+      window.open(url,'_blank');
+    });
+    saveBtn.addEventListener('click', ()=>{
+      const a = document.createElement('a');
+      a.download = fileStem(currentFile?.name || 'image') + '.html';
+      a.href = URL.createObjectURL(new Blob([fullhtml.value], {type:'text/html'}));
+      a.click();
+    });
+
+    function flash(msg, isBad=false, isGood=false){
+      status.textContent = msg;
+      status.className = 'hint' + (isBad?' bad':'') + (isGood?' good':'');
+    }
+    function fileStem(name){ return name.replace(/\.[^.]+$/, ''); }
+    function humanBytes(n){
+      const u=['B','KB','MB','GB']; let i=0; let x=n; while(x>=1024 && i<u.length-1){x/=1024;i++;}
+      return `${x.toFixed(1)} ${u[i]}`;
+    }
+    function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+    function pickMime(type){
+      if(type === 'image/png' || type === 'image/svg+xml') return 'image/png';
+      if(type === 'image/webp') return 'image/webp';
+      return 'image/jpeg';
+    }
+    function arrayBufferToBase64(buffer){
+      let binary='';
+      const bytes = new Uint8Array(buffer);
+      const chunk = 0x8000; // 32k chunks to avoid call stack blowups
+      for (let i=0; i<bytes.length; i+=chunk){
+        binary += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+      }
+      return btoa(binary);
+    }
+    function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+    function drawImageAsync(ctx, img, dx, dy, dw, dh){
+      return new Promise(resolve=>{ ctx.drawImage(img, dx, dy, dw, dh); requestAnimationFrame(resolve); });
+    }
+  </script>
+</body>
+</html>
